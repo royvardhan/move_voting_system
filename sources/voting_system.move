@@ -71,10 +71,10 @@ public entry fun add_candidate(acc: &signer, c_addr: address) acquires Candidate
     simple_map::add(&mut c_store.candidate_list, c_addr, 0);
 }
 
-public entry fun vote(acc: &signer, c_addr: address) acquires CandidateList, VotingList{
+public entry fun vote(acc: &signer, c_addr: address, store_addr: address) acquires CandidateList, VotingList{
     let addr = signer::address_of(acc);
 
-    assert_has_initialized(addr);
+    assert_has_initialized(store_addr);
 
 
     let c_store = borrow_global_mut<CandidateList>(@my_addrx);
