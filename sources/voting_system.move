@@ -96,14 +96,9 @@ public entry fun vote(acc: &signer, c_addr: address, store_addr: address) acquir
     let v_store = borrow_global_mut<VotingList>(store_addr);
     assert!(c_store.winner == @0x0, 5);
     assert!(!simple_map::contains_key(&v_store.voters, &addr), 6);
-
-    if(simple_map::contains_key(&c_store.candidate_list, &c_addr)) {
-        let votes = simple_map::borrow_mut(&mut c_store.candidate_list, &c_addr);
-        *votes = *votes + 1;
-    } else {
-        simple_map::add(&mut c_store.candidate_list, c_addr, 1);
-    };
-
+    assert_contains_key(&c_store.candidate_list, &c_addr);
+    let votes = simple_map::borrow_mut(&mut c_store.candidate_list, &c_addr);
+    *votes = *votes + 1;
     simple_map::add(&mut v_store.voters, addr, 1);
 }
 
