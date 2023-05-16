@@ -6,13 +6,13 @@ use std::simple_map::{Self, SimpleMap};
 use std::account;
 
 
-const NOT_OWNER: u64 = 0;
-const IS_NOT_INITIALIZED: u64 = 1;
-const DOES_NOT_CONTAIN_KEY: u64 = 2;
-const IS_INITIALIZED: u64 = 3;
-const IS_INITIALIZED_WITH_CANDIDATE: u64 = 4;
-const WINNER_DECLARED: u64 = 5;
-const HAS_VOTED: u64 = 6;
+const E_NOT_OWNER: u64 = 0;
+const E_IS_NOT_INITIALIZED: u64 = 1;
+const E_DOES_NOT_CONTAIN_KEY: u64 = 2;
+const E_IS_INITIALIZED: u64 = 3;
+const E_IS_INITIALIZED_WITH_CANDIDATE: u64 = 4;
+const E_WINNER_DECLARED: u64 = 5;
+const E_HAS_VOTED: u64 = 6;
 
 struct CandidateList has key {
     candidate_list: SimpleMap<address, u64>,
@@ -165,7 +165,7 @@ public entry fun test_flow(admin: signer) acquires CandidateList, VotingList {
 }
 
 #[test(admin = @my_addrx)]
-#[expected_failure(abort_code = WINNER_DECLARED)]
+#[expected_failure(abort_code = E_WINNER_DECLARED)]
 public entry fun test_declare_winner(admin: signer) acquires CandidateList, VotingList {
     let c_addr = @0x1;
     let c_addr2 = @0x2;
@@ -184,7 +184,7 @@ public entry fun test_declare_winner(admin: signer) acquires CandidateList, Voti
 }
 
 #[test]
-#[expected_failure(abort_code = NOT_OWNER)]
+#[expected_failure(abort_code = E_NOT_OWNER)]
 
 public entry fun test_initialize_with_candidate_not_owner() acquires CandidateList {
     let c_addr = @0x1;
@@ -193,7 +193,7 @@ public entry fun test_initialize_with_candidate_not_owner() acquires CandidateLi
 }
 
 #[test(admin = @my_addrx)]
-#[expected_failure(abort_code = IS_INITIALIZED)]
+#[expected_failure(abort_code = E_IS_INITIALIZED)]
 public entry fun test_initialize_with_same_candidate(admin: signer) acquires CandidateList {
     let c_addr = @0x1;
     initialize_with_candidate(&admin, c_addr);
@@ -201,7 +201,7 @@ public entry fun test_initialize_with_same_candidate(admin: signer) acquires Can
 }
 
 #[test(admin = @my_addrx)]
-#[expected_failure(abort_code = HAS_VOTED)]
+#[expected_failure(abort_code = E_HAS_VOTED)]
 
 public entry fun test_vote_twice(admin: signer) acquires CandidateList, VotingList {
     let c_addr = @0x1;
@@ -212,7 +212,7 @@ public entry fun test_vote_twice(admin: signer) acquires CandidateList, VotingLi
 }
 
 #[test(admin = @my_addrx)]
-#[expected_failure(abort_code = IS_NOT_INITIALIZED)]
+#[expected_failure(abort_code = E_IS_NOT_INITIALIZED)]
 
 public entry fun test_vote_not_initialized(admin: signer) acquires CandidateList, VotingList {
     let c_addr = @0x1;
@@ -221,11 +221,12 @@ public entry fun test_vote_not_initialized(admin: signer) acquires CandidateList
 }
 
 #[test(admin = @my_addrx)]
-#[expected_failure(abort_code = WINNER_DECLARED)]
+#[expected_failure(abort_code = E_WINNER_DECLARED)]
 
-public entry fun test_declare_winner_twice(admin: signer) acquires CandidateList, VotingList {
+public entry fun test_add_candidate_after_winner_declared(admin: signer) acquires CandidateList, VotingList {
     let c_addr = @0x1;
     let c_addr2 = @0x2;
+    let c_addr3 = @0x3;
     let voter = account::create_account_for_test(@0x2);
     let voter2 = account::create_account_for_test(@0x3);
     initialize_with_candidate(&admin, c_addr);
@@ -233,7 +234,7 @@ public entry fun test_declare_winner_twice(admin: signer) acquires CandidateList
     vote(&voter, c_addr, signer::address_of(&admin));
     vote(&voter2, c_addr, signer::address_of(&admin));
     declare_winner(&admin);
-    declare_winner(&admin);
+    add_candidate(&admin, c_addr3);
 
 }
 
