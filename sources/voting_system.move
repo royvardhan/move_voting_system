@@ -3,11 +3,16 @@ module my_addrx::Voting {
 use std::signer;
 use std::vector;
 use std::simple_map::{Self, SimpleMap};
+use std::account;
 
 
 const NOT_OWNER: u64 = 0;
 const IS_NOT_INITIALIZED: u64 = 1;
 const DOES_NOT_CONTAIN_KEY: u64 = 2;
+const IS_INITIALIZED: u64 = 3;
+const IS_INITIALIZED_WITH_CANDIDATE: u64 = 4;
+const WINNER_DECLARED: u64 = 5;
+const HAS_VOTED: u64 = 6;
 
 struct CandidateList has key {
     candidate_list: SimpleMap<address, u64>,
@@ -16,21 +21,31 @@ struct CandidateList has key {
 }
 
 struct VotingList has key {
-    voters: SimpleMap<address, u8>
+    voters: SimpleMap<address, u64>
 }
 
 public fun assert_is_owner(addr: address) {
     assert!(addr == @my_addrx, 0);
 }
 
-public fun assert_has_initialized(addr: address) {
+public fun assert_is_initialized(addr: address) {
     assert!(exists<CandidateList>(addr), 1);
     assert!(exists<VotingList>(addr), 1);
+}
+
+public fun assert_uninitialized(addr: address) {
+    assert!(!exists<CandidateList>(addr), 3);
+    assert!(!exists<VotingList>(addr), 3);
 }
 
 public fun assert_contains_key(map: &SimpleMap<address, u64>, addr: &address) {
     assert!(simple_map::contains_key(map, addr), 2);
 }
+
+public fun assert_not_contains_key(map: &SimpleMap<address, u64>, addr: &address) {
+    assert!(!simple_map::contains_key(map, addr), 4);
+}
+
 
 
 public entry fun initialize_with_candidate(acc: &signer, c_addr: address) acquires CandidateList {
@@ -38,11 +53,12 @@ public entry fun initialize_with_candidate(acc: &signer, c_addr: address) acquir
     let addr = signer::address_of(acc);
 
     assert_is_owner(addr);
-    assert_has_initialized(addr);
+    assert_uninitialized(addr);
 
     let c_store = CandidateList{
         candidate_list:simple_map::create(),
         c_list: vector::empty<address>(),
+        
         winner: @0x0,
         };
 
@@ -55,8 +71,6 @@ public entry fun initialize_with_candidate(acc: &signer, c_addr: address) acquir
         move_to(acc, v_store);
     
     let c_store = borrow_global_mut<CandidateList>(addr);
-    assert_contains_key(&c_store.candidate_list, &c_addr);
-
     simple_map::add(&mut c_store.candidate_list, c_addr, 0);
     vector::push_back(&mut c_store.c_list, c_addr);
 }
@@ -64,22 +78,23 @@ public entry fun initialize_with_candidate(acc: &signer, c_addr: address) acquir
 public entry fun add_candidate(acc: &signer, c_addr: address) acquires CandidateList {
     let addr = signer::address_of(acc);
     assert_is_owner(addr);
-    assert_has_initialized(addr);
+    assert_is_initialized(addr);
 
     let c_store = borrow_global_mut<CandidateList>(addr);
-    assert_contains_key(&c_store.candidate_list, &c_addr);
+    assert!(c_store.winner == @0x0, 5);
+    assert_not_contains_key(&c_store.candidate_list, &c_addr);
     simple_map::add(&mut c_store.candidate_list, c_addr, 0);
 }
 
 public entry fun vote(acc: &signer, c_addr: address, store_addr: address) acquires CandidateList, VotingList{
     let addr = signer::address_of(acc);
 
-    assert_has_initialized(store_addr);
+    assert_is_initialized(store_addr);
 
-
-    let c_store = borrow_global_mut<CandidateList>(@my_addrx);
-    let v_store = borrow_global_mut<VotingList>(@my_addrx);
-    assert!(!simple_map::contains_key(&v_store.voters, &addr), 2);
+    let c_store = borrow_global_mut<CandidateList>(store_addr);
+    let v_store = borrow_global_mut<VotingList>(store_addr);
+    assert!(c_store.winner == @0x0, 5);
+    assert!(!simple_map::contains_key(&v_store.voters, &addr), 6);
 
     if(simple_map::contains_key(&c_store.candidate_list, &c_addr)) {
         let votes = simple_map::borrow_mut(&mut c_store.candidate_list, &c_addr);
@@ -88,16 +103,16 @@ public entry fun vote(acc: &signer, c_addr: address, store_addr: address) acquir
         simple_map::add(&mut c_store.candidate_list, c_addr, 1);
     };
 
-    let vote = simple_map::borrow_mut(&mut v_store.voters, &addr);
-    *vote = 1;
+    simple_map::add(&mut v_store.voters, addr, 1);
 }
 
 public entry fun declare_winner(acc: &signer) acquires CandidateList {
     let addr = signer::address_of(acc);
-    assert!(addr == @my_addrx, 0);
-    assert!(exists<CandidateList>(addr), 0);
+    assert_is_owner(addr);
+    assert_is_initialized(addr);
 
-    let c_store = borrow_global_mut<CandidateList>(@my_addrx);
+    let c_store = borrow_global_mut<CandidateList>(addr);
+    assert!(c_store.winner == @0x0, 5);
 
     let candidates = vector::length(&c_store.c_list);
 
@@ -119,5 +134,107 @@ public entry fun declare_winner(acc: &signer) acquires CandidateList {
     c_store.winner = winner;
 }
 
+#[test(admin = @my_addrx)]
+
+public entry fun test_flow(admin: signer) acquires CandidateList, VotingList {
+    let c_addr = @0x1;
+    let c_addr2 = @0x2;
+    let voter = account::create_account_for_test(@0x3);
+    let voter2 = account::create_account_for_test(@0x4);
+    let voter3 = account::create_account_for_test(@0x5);
+    initialize_with_candidate(&admin, c_addr);
+    add_candidate(&admin, c_addr2);
+    let candidate_list = &borrow_global<CandidateList>(signer::address_of(&admin)).candidate_list;
+    assert_contains_key(candidate_list, &c_addr);
+    assert_contains_key(candidate_list, &c_addr2);
+
+
+    vote(&voter, c_addr, signer::address_of(&admin));
+    vote(&voter2, c_addr, signer::address_of(&admin));
+    vote(&voter3, c_addr2, signer::address_of(&admin));
+
+    let voters = &borrow_global<VotingList>(signer::address_of(&admin)).voters;
+    assert_contains_key(voters, &signer::address_of(&voter));
+    assert_contains_key(voters, &signer::address_of(&voter2));
+    assert_contains_key(voters, &signer::address_of(&voter3));
+
+    declare_winner(&admin);
+    let winner = &borrow_global<CandidateList>(signer::address_of(&admin)).winner;
+
+    assert!(winner == &c_addr, 0);
+}
+
+#[test(admin = @my_addrx)]
+#[expected_failure(abort_code = WINNER_DECLARED)]
+public entry fun test_declare_winner(admin: signer) acquires CandidateList, VotingList {
+    let c_addr = @0x1;
+    let c_addr2 = @0x2;
+    let voter = account::create_account_for_test(@0x3);
+    let voter2 = account::create_account_for_test(@0x4);
+    let voter3 = account::create_account_for_test(@0x5);
+    initialize_with_candidate(&admin, c_addr);
+    add_candidate(&admin, c_addr2);
+
+    vote(&voter, c_addr, signer::address_of(&admin));
+    vote(&voter2, c_addr, signer::address_of(&admin));
+    vote(&voter3, c_addr2, signer::address_of(&admin));
+
+    declare_winner(&admin);
+    declare_winner(&admin);
+}
+
+#[test]
+#[expected_failure(abort_code = NOT_OWNER)]
+
+public entry fun test_initialize_with_candidate_not_owner() acquires CandidateList {
+    let c_addr = @0x1;
+    let not_owner = account::create_account_for_test(@0x2);
+    initialize_with_candidate(&not_owner, c_addr);
+}
+
+#[test(admin = @my_addrx)]
+#[expected_failure(abort_code = IS_INITIALIZED)]
+public entry fun test_initialize_with_same_candidate(admin: signer) acquires CandidateList {
+    let c_addr = @0x1;
+    initialize_with_candidate(&admin, c_addr);
+    initialize_with_candidate(&admin, c_addr);
+}
+
+#[test(admin = @my_addrx)]
+#[expected_failure(abort_code = HAS_VOTED)]
+
+public entry fun test_vote_twice(admin: signer) acquires CandidateList, VotingList {
+    let c_addr = @0x1;
+    let voter = account::create_account_for_test(@0x2);
+    initialize_with_candidate(&admin, c_addr);
+    vote(&voter, c_addr, signer::address_of(&admin));
+    vote(&voter, c_addr, signer::address_of(&admin));
+}
+
+#[test(admin = @my_addrx)]
+#[expected_failure(abort_code = IS_NOT_INITIALIZED)]
+
+public entry fun test_vote_not_initialized(admin: signer) acquires CandidateList, VotingList {
+    let c_addr = @0x1;
+    let voter = account::create_account_for_test(@0x2);
+    vote(&voter, c_addr, signer::address_of(&admin));
+}
+
+#[test(admin = @my_addrx)]
+#[expected_failure(abort_code = WINNER_DECLARED)]
+
+public entry fun test_declare_winner_twice(admin: signer) acquires CandidateList, VotingList {
+    let c_addr = @0x1;
+    let c_addr2 = @0x2;
+    let voter = account::create_account_for_test(@0x2);
+    let voter2 = account::create_account_for_test(@0x3);
+    initialize_with_candidate(&admin, c_addr);
+    add_candidate(&admin, c_addr2);
+    vote(&voter, c_addr, signer::address_of(&admin));
+    vote(&voter2, c_addr, signer::address_of(&admin));
+    declare_winner(&admin);
+    declare_winner(&admin);
+
+}
 
 }
