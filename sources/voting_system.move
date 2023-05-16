@@ -28,7 +28,7 @@ public fun assert_has_initialized(addr: address) {
     assert!(exists<VotingList>(addr), 1);
 }
 
-public fun assert_contains_key(map: &SimpleMap, addr: &address) {
+public fun assert_contains_key(map: &SimpleMap<address, u64>, addr: &address) {
     assert!(simple_map::contains_key(map, addr), 2);
 }
 
