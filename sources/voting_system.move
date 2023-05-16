@@ -160,7 +160,6 @@ public entry fun test_flow(admin: signer) acquires CandidateList, VotingList {
 
     declare_winner(&admin);
     let winner = &borrow_global<CandidateList>(signer::address_of(&admin)).winner;
-
     assert!(winner == &c_addr, 0);
 }
 
@@ -235,7 +234,8 @@ public entry fun test_add_candidate_after_winner_declared(admin: signer) acquire
     vote(&voter2, c_addr, signer::address_of(&admin));
     declare_winner(&admin);
     add_candidate(&admin, c_addr3);
-
 }
+
+
 
 }
