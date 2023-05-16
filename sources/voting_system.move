@@ -84,6 +84,7 @@ public entry fun add_candidate(acc: &signer, c_addr: address) acquires Candidate
     assert!(c_store.winner == @0x0, 5);
     assert_not_contains_key(&c_store.candidate_list, &c_addr);
     simple_map::add(&mut c_store.candidate_list, c_addr, 0);
+    vector::push_back(&mut c_store.c_list, c_addr);
 }
 
 public entry fun vote(acc: &signer, c_addr: address, store_addr: address) acquires CandidateList, VotingList{
@@ -235,7 +236,5 @@ public entry fun test_add_candidate_after_winner_declared(admin: signer) acquire
     declare_winner(&admin);
     add_candidate(&admin, c_addr3);
 }
-
-
 
 }
